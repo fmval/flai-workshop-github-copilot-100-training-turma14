@@ -10,8 +10,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const response = await fetch("/activities");
       const activities = await response.json();
 
-      // Clear loading message
+      // Clear loading message and reset dropdown
       activitiesList.innerHTML = "";
+      activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
@@ -20,11 +21,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
+        const participantsHTML = details.participants.length > 0
+          ? `<ul class="participants-list">${details.participants.map(p => `
+            <li>
+              <span class="participant-email">${p}</span>
+              <button class="delete-btn" data-email="${p}" data-activity="${name}" title="Unregister">&times;</button>
+            </li>`).join("")}</ul>`
+          : `<p class="no-participants">No participants yet. Be the first!</p>`;
+
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <div class="participants-section">
+            <h5>Participants (${details.participants.length}/${details.max_participants})</h5>
+            ${participantsHTML}
+          </div>
         `;
 
         activitiesList.appendChild(activityCard);
@@ -69,6 +82,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       messageDiv.classList.remove("hidden");
 
+      // Refresh activities to reflect new participant
+      if (response.ok) {
+        fetchActivities();
+      }
+
       // Hide message after 5 seconds
       setTimeout(() => {
         messageDiv.classList.add("hidden");
@@ -78,6 +96,31 @@ document.addEventListener("DOMContentLoaded", () => {
       messageDiv.className = "error";
       messageDiv.classList.remove("hidden");
       console.error("Error signing up:", error);
+    }
+  });
+
+  // Handle delete (unregister) button clicks
+  activitiesList.addEventListener("click", async (event) => {
+    const btn = event.target.closest(".delete-btn");
+    if (!btn) return;
+
+    const email = btn.dataset.email;
+    const activity = btn.dataset.activity;
+
+    try {
+      const response = await fetch(
+        `/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(email)}`,
+        { method: "DELETE" }
+      );
+
+      if (response.ok) {
+        fetchActivities();
+      } else {
+        const result = await response.json();
+        console.error("Error unregistering:", result.detail);
+      }
+    } catch (error) {
+      console.error("Error unregistering:", error);
     }
   });
 
